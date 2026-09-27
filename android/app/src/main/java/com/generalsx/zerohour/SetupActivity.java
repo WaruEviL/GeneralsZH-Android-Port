@@ -2877,62 +2877,84 @@ public class SetupActivity extends Activity {
 
     // GeneralsX @feature Android port 27/09/2026
     // Automatic Zero Hour game-data downloader.
-    // If the game files are already installed, launch normally.
-    // If they are missing, download and install them first.
+    //
+    // IMPORTANT: Do not rely on one hard-coded folder name here. The installer
+    // returns the directory it actually extracted to, and older builds used
+    // "GeneralsZH". A completed download must be detected on the next launch
+    // instead of starting the download again.
     private boolean pendingLaunchAfterRotation = false;
 
-    private void onLaunchGame() {
-
-        File root = getExternalFilesDir(null);
-
-        if (root == null) {
-            new android.app.AlertDialog.Builder(this)
-                    .setTitle("Game files")
-                    .setMessage(
-                            "Android storage directory is unavailable."
-                    )
-                    .setPositiveButton("OK", null)
-                    .show();
-            return;
+    private boolean hasRequiredGameFiles(File dir) {
+        if (dir == null || !dir.isDirectory()) {
+            return false;
         }
 
-        // IMPORTANT:
-        // This must match the directory used by GameDataInstaller.
-        File gameDirectory = new File(
-                root,
-                "Command and Conquer Generals Zero Hour"
-        );
+        for (String name : REQUIRED_GAME_FILES) {
+            if (new File(dir, name).isFile()) {
+                return true;
+            }
+        }
 
-        File iniZh = new File(
-                gameDirectory,
-                "INIZH.big"
-        );
+        return false;
+    }
 
-        File ini = new File(
-                gameDirectory,
-                "INI.big"
-        );
+    private File findInstalledGameDirectory() {
+        // 1. The exact path saved by the installer / folder picker.
+        String savedPath = getSavedGamePath();
+        if (savedPath != null && !savedPath.trim().isEmpty()) {
+            File saved = new File(savedPath);
+            if (hasRequiredGameFiles(saved)) {
+                return saved;
+            }
+        }
 
-        // Game files are already installed.
-        // Do NOT download again.
-        if (gameDirectory.isDirectory()
-                && (iniZh.isFile() || ini.isFile())) {
+        File root = getExternalFilesDir(null);
+        if (root == null) {
+            return null;
+        }
 
-            saveGamePath(
-                    gameDirectory.getAbsolutePath()
-            );
+        // 2. Current installer directory.
+        File current = new File(root, "Command and Conquer Generals Zero Hour");
+        if (hasRequiredGameFiles(current)) {
+            return current;
+        }
 
+        // 3. Legacy directory used by an earlier downloader build.
+        File legacy = new File(root, "GeneralsZH");
+        if (hasRequiredGameFiles(legacy)) {
+            return legacy;
+        }
+
+        // 4. Last-resort recovery: the installer may have created a different
+        // directory name. Check the immediate children for INIZH.big / INI.big.
+        File[] children = root.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                if (hasRequiredGameFiles(child)) {
+                    return child;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private void onLaunchGame() {
+        File installed = findInstalledGameDirectory();
+
+        if (installed != null) {
+            // Save the exact directory that was found. This makes both Java and
+            // SDL3 native code use the same path on every future launch.
+            saveGamePath(installed.getAbsolutePath());
             launchInstalledGame();
             return;
         }
 
-        // Game files are missing.
-        // Download and install them once.
+        // No complete game-data directory was found.
         showGameDownloadDialog();
     }
 
     private void showGameDownloadDialog() {
-
         final android.widget.ProgressBar progressBar =
                 new android.widget.ProgressBar(
                         this,
@@ -2950,49 +2972,27 @@ public class SetupActivity extends Activity {
                 "Game files are required.\n\nPreparing download..."
         );
 
-        downloadStatusText.setPadding(
-                0,
-                0,
-                0,
-                24
-        );
+        downloadStatusText.setPadding(0, 0, 0, 24);
 
         android.widget.LinearLayout layout =
                 new android.widget.LinearLayout(this);
 
-        layout.setOrientation(
-                android.widget.LinearLayout.VERTICAL
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+
+        int padding = (int) (
+                24 * getResources().getDisplayMetrics().density
         );
 
-        int padding =
-                (int) (
-                        24
-                        * getResources()
-                                .getDisplayMetrics()
-                                .density
-                );
-
-        layout.setPadding(
-                padding,
-                padding,
-                padding,
-                padding
-        );
+        layout.setPadding(padding, padding, padding, padding);
 
         layout.addView(
                 downloadStatusText,
-                new android.widget.LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                )
+                new android.widget.LinearLayout.LayoutParams(-1, -2)
         );
 
         layout.addView(
                 progressBar,
-                new android.widget.LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                )
+                new android.widget.LinearLayout.LayoutParams(-1, -2)
         );
 
         final android.app.AlertDialog dialog =
@@ -3009,21 +3009,13 @@ public class SetupActivity extends Activity {
                 new GameDataInstaller.Listener() {
 
                     @Override
-                    public void onProgress(
-                            long downloaded,
-                            long total
-                    ) {
-
+                    public void onProgress(long downloaded, long total) {
                         if (total > 0) {
-
                             progressBar.setIndeterminate(false);
 
-                            int percent =
-                                    (int) (
-                                            downloaded
-                                            * 100L
-                                            / total
-                                    );
+                            int percent = (int) (
+                                    downloaded * 100L / total
+                            );
 
                             progressBar.setProgress(
                                     Math.min(100, percent)
@@ -3031,14 +3023,10 @@ public class SetupActivity extends Activity {
 
                             downloadStatusText.setText(
                                     "Downloading game files...\n\n"
-                                    + percent
-                                    + "%"
+                                    + percent + "%"
                             );
-
                         } else {
-
                             progressBar.setIndeterminate(true);
-
                             downloadStatusText.setText(
                                     "Downloading game files..."
                             );
@@ -3052,24 +3040,43 @@ public class SetupActivity extends Activity {
 
                     @Override
                     public void onSuccess(File gameDirectory) {
-
                         dialog.dismiss();
 
-                        // Save the exact directory returned by the installer.
-                        saveGamePath(
-                                gameDirectory.getAbsolutePath()
-                        );
+                        // Prefer the exact directory returned by the installer,
+                        // but verify it before saving it.
+                        File installed = null;
 
+                        if (hasRequiredGameFiles(gameDirectory)) {
+                            installed = gameDirectory;
+                        } else {
+                            // If the installer callback supplied a parent or
+                            // slightly different path, recover the real folder.
+                            installed = findInstalledGameDirectory();
+                        }
+
+                        if (installed == null) {
+                            new android.app.AlertDialog.Builder(
+                                    SetupActivity.this
+                            )
+                                    .setTitle("Game files")
+                                    .setMessage(
+                                            "Download completed, but INIZH.big / INI.big "
+                                            + "was not found in the installed game folder."
+                                    )
+                                    .setPositiveButton("OK", null)
+                                    .show();
+                            return;
+                        }
+
+                        saveGamePath(installed.getAbsolutePath());
                         refreshStatus();
 
-                        // Download completed successfully.
-                        // Open the game automatically.
+                        // Download completed and the files were verified.
                         launchInstalledGame();
                     }
 
                     @Override
                     public void onError(String message) {
-
                         dialog.dismiss();
 
                         new android.app.AlertDialog.Builder(
