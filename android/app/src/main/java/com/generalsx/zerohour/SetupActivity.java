@@ -2896,9 +2896,11 @@ public class SetupActivity extends Activity {
             return;
         }
 
+        // IMPORTANT:
+        // This must match the directory used by GameDataInstaller.
         File gameDirectory = new File(
                 root,
-                "GeneralsZH"
+                "Command and Conquer Generals Zero Hour"
         );
 
         File iniZh = new File(
@@ -2911,7 +2913,8 @@ public class SetupActivity extends Activity {
                 "INI.big"
         );
 
-        // Game files already exist.
+        // Game files are already installed.
+        // Do NOT download again.
         if (gameDirectory.isDirectory()
                 && (iniZh.isFile() || ini.isFile())) {
 
@@ -2924,7 +2927,7 @@ public class SetupActivity extends Activity {
         }
 
         // Game files are missing.
-        // Start automatic downloader.
+        // Download and install them once.
         showGameDownloadDialog();
     }
 
@@ -3013,9 +3016,7 @@ public class SetupActivity extends Activity {
 
                         if (total > 0) {
 
-                            progressBar.setIndeterminate(
-                                    false
-                            );
+                            progressBar.setIndeterminate(false);
 
                             int percent =
                                     (int) (
@@ -3025,10 +3026,7 @@ public class SetupActivity extends Activity {
                                     );
 
                             progressBar.setProgress(
-                                    Math.min(
-                                            100,
-                                            percent
-                                    )
+                                    Math.min(100, percent)
                             );
 
                             downloadStatusText.setText(
@@ -3039,9 +3037,7 @@ public class SetupActivity extends Activity {
 
                         } else {
 
-                            progressBar.setIndeterminate(
-                                    true
-                            );
+                            progressBar.setIndeterminate(true);
 
                             downloadStatusText.setText(
                                     "Downloading game files..."
@@ -3050,52 +3046,38 @@ public class SetupActivity extends Activity {
                     }
 
                     @Override
-                    public void onStatus(
-                            String status
-                    ) {
-
-                        downloadStatusText.setText(
-                                status
-                        );
+                    public void onStatus(String status) {
+                        downloadStatusText.setText(status);
                     }
 
                     @Override
-                    public void onSuccess(
-                            File gameDirectory
-                    ) {
+                    public void onSuccess(File gameDirectory) {
 
                         dialog.dismiss();
 
+                        // Save the exact directory returned by the installer.
                         saveGamePath(
-                                gameDirectory
-                                        .getAbsolutePath()
+                                gameDirectory.getAbsolutePath()
                         );
 
                         refreshStatus();
 
+                        // Download completed successfully.
+                        // Open the game automatically.
                         launchInstalledGame();
                     }
 
                     @Override
-                    public void onError(
-                            String message
-                    ) {
+                    public void onError(String message) {
 
                         dialog.dismiss();
 
                         new android.app.AlertDialog.Builder(
                                 SetupActivity.this
                         )
-                                .setTitle(
-                                        "Download failed"
-                                )
-                                .setMessage(
-                                        message
-                                )
-                                .setPositiveButton(
-                                        "OK",
-                                        null
-                                )
+                                .setTitle("Download failed")
+                                .setMessage(message)
+                                .setPositiveButton("OK", null)
                                 .show();
                     }
                 }
@@ -3132,9 +3114,7 @@ public class SetupActivity extends Activity {
             Configuration newConfig
     ) {
 
-        super.onConfigurationChanged(
-                newConfig
-        );
+        super.onConfigurationChanged(newConfig);
 
         if (pendingLaunchAfterRotation
                 && newConfig.orientation
