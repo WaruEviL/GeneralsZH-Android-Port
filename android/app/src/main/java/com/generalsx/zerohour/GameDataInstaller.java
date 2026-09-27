@@ -46,13 +46,13 @@ final class GameDataInstaller {
     private static final String GAME_ZIP_SHA256 = "8682eaae52cb41e9c1db0b35743de522ff985b6b49e582cc8d49e32a1a0a254d";
 
     private static final String ZIP_NAME =
-        "GeneralsZH-Android.zip";
+        "GeneralsZHWE.zip";
 
     private static final String PART_NAME =
-        "GeneralsZH-Android.zip.part";
+        "GeneralsZHWE.zip.part";
 
     private static final String GAME_DIRECTORY =
-        "GeneralsZH";
+        "Command and Conquer Generals Zero Hour";
 
     interface Listener {
         void onProgress(long downloaded, long total);
