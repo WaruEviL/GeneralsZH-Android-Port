@@ -2875,33 +2875,279 @@ public class SetupActivity extends Activity {
         startActivity(new Intent(this, NetworkDiagnosticsActivity.class));
     }
 
-    // GeneralsX @bugfix Android port 31/07/2026 Setup is portrait-first now
-    // (see AndroidManifest.xml/onCreate() comments), so launching straight
-    // into GeneralsZHActivity (locked landscape) can trigger a real
-    // portrait->landscape rotation right as the game's native window-size
-    // probe (WW3D::Init()) runs -- previously sidestepped entirely by never
-    // letting Setup rotate. Force landscape here and wait for
-    // onConfigurationChanged() to confirm the OS has actually applied it
-    // before starting the game, instead of guessing with a fixed delay. If
-    // we're already landscape (e.g. a tablet, or the user physically
-    // rotated the phone), there's nothing to wait for.
+    // GeneralsX @feature Android port 27/09/2026
+    // Automatic Zero Hour game-data downloader.
+    // If the game files are already installed, launch normally.
+    // If they are missing, download and install them first.
     private boolean pendingLaunchAfterRotation = false;
 
     private void onLaunchGame() {
-        if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            startActivity(new Intent(this, GeneralsZHActivity.class));
+
+        File root = getExternalFilesDir(null);
+
+        if (root == null) {
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Game files")
+                    .setMessage(
+                            "Android storage directory is unavailable."
+                    )
+                    .setPositiveButton("OK", null)
+                    .show();
             return;
         }
+
+        File gameDirectory = new File(
+                root,
+                "GeneralsZH"
+        );
+
+        File iniZh = new File(
+                gameDirectory,
+                "INIZH.big"
+        );
+
+        File ini = new File(
+                gameDirectory,
+                "INI.big"
+        );
+
+        // Game files already exist.
+        if (gameDirectory.isDirectory()
+                && (iniZh.isFile() || ini.isFile())) {
+
+            saveGamePath(
+                    gameDirectory.getAbsolutePath()
+            );
+
+            launchInstalledGame();
+            return;
+        }
+
+        // Game files are missing.
+        // Start automatic downloader.
+        showGameDownloadDialog();
+    }
+
+    private void showGameDownloadDialog() {
+
+        final android.widget.ProgressBar progressBar =
+                new android.widget.ProgressBar(
+                        this,
+                        null,
+                        android.R.attr.progressBarStyleHorizontal
+                );
+
+        progressBar.setMax(100);
+        progressBar.setProgress(0);
+
+        final android.widget.TextView downloadStatusText =
+                new android.widget.TextView(this);
+
+        downloadStatusText.setText(
+                "Game files are required.\n\nPreparing download..."
+        );
+
+        downloadStatusText.setPadding(
+                0,
+                0,
+                0,
+                24
+        );
+
+        android.widget.LinearLayout layout =
+                new android.widget.LinearLayout(this);
+
+        layout.setOrientation(
+                android.widget.LinearLayout.VERTICAL
+        );
+
+        int padding =
+                (int) (
+                        24
+                        * getResources()
+                                .getDisplayMetrics()
+                                .density
+                );
+
+        layout.setPadding(
+                padding,
+                padding,
+                padding,
+                padding
+        );
+
+        layout.addView(
+                downloadStatusText,
+                new android.widget.LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
+
+        layout.addView(
+                progressBar,
+                new android.widget.LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
+
+        final android.app.AlertDialog dialog =
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("Generals Zero Hour")
+                        .setView(layout)
+                        .setCancelable(false)
+                        .create();
+
+        dialog.show();
+
+        GameDataInstaller.install(
+                this,
+                new GameDataInstaller.Listener() {
+
+                    @Override
+                    public void onProgress(
+                            long downloaded,
+                            long total
+                    ) {
+
+                        if (total > 0) {
+
+                            progressBar.setIndeterminate(
+                                    false
+                            );
+
+                            int percent =
+                                    (int) (
+                                            downloaded
+                                            * 100L
+                                            / total
+                                    );
+
+                            progressBar.setProgress(
+                                    Math.min(
+                                            100,
+                                            percent
+                                    )
+                            );
+
+                            downloadStatusText.setText(
+                                    "Downloading game files...\n\n"
+                                    + percent
+                                    + "%"
+                            );
+
+                        } else {
+
+                            progressBar.setIndeterminate(
+                                    true
+                            );
+
+                            downloadStatusText.setText(
+                                    "Downloading game files..."
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void onStatus(
+                            String status
+                    ) {
+
+                        downloadStatusText.setText(
+                                status
+                        );
+                    }
+
+                    @Override
+                    public void onSuccess(
+                            File gameDirectory
+                    ) {
+
+                        dialog.dismiss();
+
+                        saveGamePath(
+                                gameDirectory
+                                        .getAbsolutePath()
+                        );
+
+                        refreshStatus();
+
+                        launchInstalledGame();
+                    }
+
+                    @Override
+                    public void onError(
+                            String message
+                    ) {
+
+                        dialog.dismiss();
+
+                        new android.app.AlertDialog.Builder(
+                                SetupActivity.this
+                        )
+                                .setTitle(
+                                        "Download failed"
+                                )
+                                .setMessage(
+                                        message
+                                )
+                                .setPositiveButton(
+                                        "OK",
+                                        null
+                                )
+                                .show();
+                    }
+                }
+        );
+    }
+
+    private void launchInstalledGame() {
+
+        if (getResources()
+                .getConfiguration()
+                .orientation
+                == Configuration.ORIENTATION_LANDSCAPE) {
+
+            startActivity(
+                    new Intent(
+                            this,
+                            GeneralsZHActivity.class
+                    )
+            );
+
+            return;
+        }
+
         pendingLaunchAfterRotation = true;
-        setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+
+        setRequestedOrientation(
+                android.content.pm.ActivityInfo
+                        .SCREEN_ORIENTATION_LANDSCAPE
+        );
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (pendingLaunchAfterRotation && newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+    public void onConfigurationChanged(
+            Configuration newConfig
+    ) {
+
+        super.onConfigurationChanged(
+                newConfig
+        );
+
+        if (pendingLaunchAfterRotation
+                && newConfig.orientation
+                == Configuration.ORIENTATION_LANDSCAPE) {
+
             pendingLaunchAfterRotation = false;
-            startActivity(new Intent(this, GeneralsZHActivity.class));
+
+            startActivity(
+                    new Intent(
+                            this,
+                            GeneralsZHActivity.class
+                    )
+            );
         }
     }
 
