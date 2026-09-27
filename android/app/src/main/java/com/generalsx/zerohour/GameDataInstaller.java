@@ -34,7 +34,7 @@ final class GameDataInstaller {
      * https://your-server.example/GeneralsZH-Android.zip
      */
     private static final String GAME_ZIP_URL =
-        "https://YOUR-SERVER.example/GeneralsZH-Android.zip";
+        "https://github.com/WaruEviL/GeneralsZH-Android-Port/releases/download/v1/GeneralsZHWE.zip";
 
     /*
      * SHA-256 of the complete ZIP file.
@@ -43,7 +43,7 @@ final class GameDataInstaller {
      *
      * For development you can temporarily leave this empty.
      */
-    private static final String GAME_ZIP_SHA256 = "";
+    private static final String GAME_ZIP_SHA256 = "8682eaae52cb41e9c1db0b35743de522ff985b6b49e582cc8d49e32a1a0a254d";
 
     private static final String ZIP_NAME =
         "GeneralsZH-Android.zip";
